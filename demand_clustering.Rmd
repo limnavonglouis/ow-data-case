@@ -1,0 +1,92 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+# Imports
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(plotly)
+```
+
+
+# Reading data
+
+```{r}
+df_feature <- read.csv('csv/df_features.csv')
+# parkmeter_id is the count per zones 
+```
+
+```{r}
+df_demand <- read.csv('csv/demand_category.csv') 
+df_demand <- df_demand %>% select('residential_area', 'demand_category')
+```
+
+```{r}
+df_turnover <- read.csv('csv/df_turnover.csv')
+df_turnover <- df_turnover %>% select('residential_area', 'turnover')
+```
+
+
+```{r}
+df <- merge(df_feature, df_demand, by = 'residential_area')
+df <- merge(df, df_turnover, by = 'residential_area')
+```
+
+
+# 3D Plots 
+
+```{r}
+p <- plot_ly(df, x = ~res_prop, y = ~duration_hours, z = ~parkmeter_id, color = ~demand_category) %>%
+  add_markers() %>%
+  layout(scene = list(xaxis = list(title = 'res_prop'),
+                     yaxis = list(title = 'duration_hours'),
+                     zaxis = list(title = 'parkmeter_id')))
+p
+```
+
+# Clustering - need to normalize ! 
+
+```{r}
+df_num <- df %>% select ('res_prop', 'pay_prop', 'duration_hours', 'parkmeter_id', 'turnover')
+df_num$duration_hours <- df_num$duration_hours / max(df_num$duration_hours)
+df_num$parkmeter_id <- df_num$parkmeter_id / max(df_num$parkmeter_id)
+df_num$turnover <- df_num$turnover / max(df_num$turnover)
+#df_num$res_prop <- df_num$res_prop / max(df_num$res_prop)
+#df_num$pay_prop <- df_num$pay_prop / max(df_num$pay_prop)
+```
+
+
+```{r}
+res.kmeans <- kmeans(df_num, centers = 4)
+df$cluster <- as.factor(res.kmeans$cluster)
+```
+
+```{r}
+p <- plot_ly(df, x = ~res_prop, y = ~duration_hours, z = ~parkmeter_id, color = ~cluster) %>%
+  add_markers() %>%
+  layout(scene = list(xaxis = list(title = 'res_prop'),
+                     yaxis = list(title = 'duration_hours'),
+                     zaxis = list(title = 'parkmeter_id')))
+p
+```
+
+# Cluster properties 
+
+```{r}
+df %>% select('res_prop', 'pay_prop', 'duration_hours', 'parkmeter_id', 'cluster', 'turnover') %>% 
+  group_by(cluster) %>% 
+  summarise(res_prop = mean(res_prop), 
+            pay_prop = mean(pay_prop),
+            duration_hours = mean(duration_hours),
+            parkmeter_id = mean(parkmeter_id), 
+            turnover = mean(turnover), 
+            count = n())
+```
+
+```{r}
+write.csv(df, file = "residential_zones.csv")
+```
+
